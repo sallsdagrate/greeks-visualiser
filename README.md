@@ -24,6 +24,20 @@ This app lets you:
 - Clean Plotly visualisations for payoff, theoretical value, and Greeks
 - Vectorised NumPy implementation with edge-case handling for very small maturity and volatility
 
+## Screenshots
+
+### Overview
+
+![Overview](assets/screenshots/app-overview.png)
+
+### Payoff And Desk Notes
+
+![Payoff and desk notes](assets/screenshots/payoff-desk-notes.png)
+
+### Greeks Panel
+
+![Greeks panel](assets/screenshots/greeks-panel.png)
+
 ## Tech Stack
 
 - Python
@@ -64,6 +78,11 @@ For very small `T` or `sigma`, the implementation switches to stable limiting ca
 
 ```text
 .
+├── assets/
+│   └── screenshots/
+│       ├── app-overview.png
+│       ├── greeks-panel.png
+│       └── payoff-desk-notes.png
 ├── app.py
 ├── greeks.py
 ├── payoff.py

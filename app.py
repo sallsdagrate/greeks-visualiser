@@ -35,6 +35,7 @@ def main() -> None:
     )
     _inject_styles()
 
+    # The sidebar acts as a compact parameter deck for the single-option scenario.
     with st.sidebar:
         st.markdown(
             """
@@ -81,9 +82,11 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+    # Keep valuation, payoff, and risk curves aligned to the same price grid.
     position_multiplier = position_sign(position_type)
     price_grid = create_price_grid(spot, strike)
 
+    # Price the option at the current spot and across the full underlying path.
     option_value = float(
         black_scholes_price(spot, strike, rate, volatility, maturity, option_type)
     )
@@ -105,6 +108,7 @@ def main() -> None:
     signed_option_value = position_multiplier * option_value
     signed_value_curve = position_multiplier * value_curve
 
+    # Lightweight market-style diagnostics used in the hero and notes panels.
     regime = _classify_moneyness(spot, strike, option_type)
     pricing_mode = _pricing_mode(volatility, maturity)
     moneyness = spot / strike
@@ -125,7 +129,19 @@ def main() -> None:
         ),
         unsafe_allow_html=True,
     )
+    st.markdown(
+        """
+        <div class="page-orientation">
+            <span><strong>Inputs</strong> are configured in the left deck.</span>
+            <span><strong>Top cards</strong> show the current marked value and Greeks.</span>
+            <span><strong>Payoff Trace</strong> compares today's model value with the expiry payoff.</span>
+            <span><strong>Risk Sheet</strong> shows how each Greek evolves as spot moves.</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    # Split risk metrics into two rows to keep the terminal cards balanced and readable.
     top_metrics = [
         ("Position value", signed_option_value, ACCENT),
         ("Delta", signed_snapshot["delta"], PRIMARY),
@@ -147,6 +163,8 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
 
+    # The left panel focuses on the payoff/value relationship, while the right panel provides
+    # quick textual context for screenshots and first-pass interpretation.
     left_column, right_column = st.columns((1.35, 0.65), gap="large")
     with left_column:
         st.markdown(
@@ -166,7 +184,7 @@ def main() -> None:
                 strike=strike,
                 position_type=position_type,
             ),
-            use_container_width=True,
+            width="stretch",
         )
 
     with right_column:
@@ -178,20 +196,17 @@ def main() -> None:
             ),
             unsafe_allow_html=True,
         )
-        st.markdown(
-            _build_notes_panel(
-                option_type=option_type,
-                position_type=position_type,
-                regime=regime,
-                pricing_mode=pricing_mode,
-                mark=option_value,
-                break_even=break_even,
-                moneyness=moneyness,
-                discounted_strike=discounted_strike,
-                price_low=float(price_grid[0]),
-                price_high=float(price_grid[-1]),
-            ),
-            unsafe_allow_html=True,
+        _render_notes_panel(
+            option_type=option_type,
+            position_type=position_type,
+            regime=regime,
+            pricing_mode=pricing_mode,
+            mark=option_value,
+            break_even=break_even,
+            moneyness=moneyness,
+            discounted_strike=discounted_strike,
+            price_low=float(price_grid[0]),
+            price_high=float(price_grid[-1]),
         )
 
     st.markdown(
@@ -208,8 +223,8 @@ def main() -> None:
             greek_curves=signed_greek_curves,
             spot=spot,
         ),
-        use_container_width=True,
-    )
+        width="stretch",
+        )
 
 
 def _build_payoff_figure(
@@ -220,6 +235,7 @@ def _build_payoff_figure(
     strike: float,
     position_type: str,
 ) -> go.Figure:
+    """Build the main pricing view: terminal payoff versus current model value."""
     payoff_color = PRIMARY if position_type == "long" else NEGATIVE
     figure = go.Figure()
     figure.add_trace(
@@ -291,6 +307,7 @@ def _build_greeks_figure(
     greek_curves: dict[str, np.ndarray],
     spot: float,
 ) -> go.Figure:
+    """Render the five analytical Greeks on a shared underlying-price axis."""
     greek_specs = [
         ("delta", "Delta", PRIMARY, 1, 1),
         ("gamma", "Gamma", ACCENT, 1, 2),
@@ -337,6 +354,7 @@ def _build_greeks_figure(
 
 
 def _apply_chart_theme(figure: go.Figure) -> None:
+    """Apply one consistent terminal-style theme across all Plotly figures."""
     figure.update_layout(
         template=None,
         paper_bgcolor=PANEL_BG,
@@ -378,6 +396,7 @@ def _build_hero(
     maturity: float,
     rate: float,
 ) -> str:
+    """Top-of-page banner with instrument state and model regime badges."""
     badges = [
         ("BLACK-SCHOLES", "cyan"),
         ("EUROPEAN", "neutral"),
@@ -405,6 +424,7 @@ def _build_hero(
 
 
 def _metric_card(label: str, value: float, accent_color: str) -> str:
+    """Single KPI card used for the live valuation and Greek snapshot."""
     display_color = NEGATIVE if value < 0 else accent_color
     return f"""
     <div class="metric-card">
@@ -415,6 +435,7 @@ def _metric_card(label: str, value: float, accent_color: str) -> str:
 
 
 def _panel_header(kicker: str, title: str, subtitle: str) -> str:
+    """Reusable section header so every block reads like part of one terminal layout."""
     return f"""
     <div class="panel-header">
         <div class="panel-kicker">{escape(kicker.upper())}</div>
@@ -424,7 +445,7 @@ def _panel_header(kicker: str, title: str, subtitle: str) -> str:
     """
 
 
-def _build_notes_panel(
+def _render_notes_panel(
     option_type: str,
     position_type: str,
     regime: str,
@@ -435,7 +456,8 @@ def _build_notes_panel(
     discounted_strike: float,
     price_low: float,
     price_high: float,
-) -> str:
+) -> None:
+    """Render compact setup diagnostics and reading notes for the current scenario."""
     rows = [
         ("POSITION", f"{position_type.upper()} {option_type.upper()}"),
         ("REGIME", regime),
@@ -446,35 +468,37 @@ def _build_notes_panel(
         ("GRID WINDOW", f"{price_low:,.2f} -> {price_high:,.2f}"),
         ("ENGINE", pricing_mode),
     ]
-    row_markup = "".join(
-        f"""
-        <div class="console-row">
-            <span class="console-key">{escape(key)}</span>
-            <span class="console-value">{escape(value)}</span>
-        </div>
-        """
-        for key, value in rows
-    )
+
+    st.markdown('<div class="notes-subtitle">Setup Snapshot</div>', unsafe_allow_html=True)
+    for key, value in rows:
+        left, right = st.columns((0.95, 1.05), gap="small")
+        left.markdown(
+            f'<div class="notes-key">{escape(key)}</div>',
+            unsafe_allow_html=True,
+        )
+        right.markdown(
+            f'<div class="notes-value">{escape(value)}</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('<div class="notes-divider"></div>', unsafe_allow_html=True)
+
     notes = [
         "Theta is annualised.",
         "Vega and rho are quoted per 1.00 change.",
         "Short positions invert the long Greeks and value curve.",
         "Stable limiting cases are used when sigma or maturity approach zero.",
     ]
-    note_markup = "".join(
-        f'<div class="console-note"><span class="console-prompt">&gt;</span>{escape(note)}</div>'
-        for note in notes
-    )
-    return f"""
-    <div class="console-panel">
-        {row_markup}
-        <div class="console-divider"></div>
-        {note_markup}
-    </div>
-    """
+    st.markdown('<div class="notes-subtitle">Read Notes</div>', unsafe_allow_html=True)
+    for note in notes:
+        st.markdown(
+            f'<div class="notes-note"><span class="notes-prompt">&gt;</span>{escape(note)}</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def _classify_moneyness(spot: float, strike: float, option_type: str) -> str:
+    """Simple label used to describe whether the selected option is ITM, ATM, or OTM."""
     distance = abs(spot - strike) / strike
     if distance <= 0.02:
         return "ATM"
@@ -484,6 +508,7 @@ def _classify_moneyness(spot: float, strike: float, option_type: str) -> str:
 
 
 def _pricing_mode(volatility: float, maturity: float) -> str:
+    """Surface when the app is using a limiting case instead of the standard closed form."""
     if maturity <= 1e-10:
         return "EXPIRY LIMIT"
     if volatility <= 1e-10:
@@ -492,12 +517,14 @@ def _pricing_mode(volatility: float, maturity: float) -> str:
 
 
 def _break_even_price(strike: float, premium: float, option_type: str) -> float:
+    """Approximate expiry break-even using the current model premium."""
     if option_type == "call":
         return strike + premium
     return max(strike - premium, 0.0)
 
 
 def _inject_styles() -> None:
+    # CSS is kept in one place so visual changes to the terminal theme remain easy to audit.
     st.markdown(
         f"""
         <style>
@@ -529,9 +556,23 @@ def _inject_styles() -> None:
                 opacity: 0.32;
             }}
 
+            /* Remove Streamlit chrome so the page reads like a standalone app. */
+            [data-testid="stHeader"],
+            [data-testid="stToolbar"],
+            [data-testid="stDecoration"],
+            [data-testid="stStatusWidget"],
+            #MainMenu,
+            .stDeployButton {{
+                display: none !important;
+            }}
+
+            div[data-testid="stAppViewContainer"] > .main {{
+                padding-top: 0;
+            }}
+
             .block-container {{
                 max-width: 1280px;
-                padding-top: 1.6rem;
+                padding-top: 0.8rem;
                 padding-bottom: 2.2rem;
             }}
 
@@ -701,6 +742,28 @@ def _inject_styles() -> None:
                 overflow-x: auto;
             }}
 
+            .page-orientation {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.7rem;
+                margin: 0.2rem 0 0.95rem 0;
+            }}
+
+            .page-orientation span {{
+                padding: 0.45rem 0.65rem;
+                border-radius: 999px;
+                background: rgba(13, 27, 24, 0.82);
+                border: 1px solid {PANEL_BORDER};
+                color: {MUTED};
+                font-size: 0.74rem;
+                line-height: 1.4;
+            }}
+
+            .page-orientation strong {{
+                color: {TEXT};
+                font-weight: 600;
+            }}
+
             .metric-card {{
                 margin: 0.3rem 0 0.8rem 0;
                 padding: 0.95rem 1rem;
@@ -751,41 +814,37 @@ def _inject_styles() -> None:
                 max-width: 820px;
             }}
 
-            .console-panel {{
-                background: linear-gradient(180deg, rgba(10, 21, 19, 0.96) 0%, rgba(8, 16, 15, 0.96) 100%);
-                border: 1px solid {PANEL_BORDER};
-                border-radius: 18px;
-                padding: 0.9rem 1rem;
-                box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
-            }}
-
-            .console-row {{
-                display: flex;
-                justify-content: space-between;
-                gap: 1rem;
-                padding: 0.52rem 0;
-                border-bottom: 1px solid rgba(23, 53, 48, 0.45);
-            }}
-
-            .console-key {{
+            .notes-key {{
                 color: {MUTED};
                 font-size: 0.76rem;
                 letter-spacing: 0.12em;
+                padding: 0.42rem 0;
+                border-bottom: 1px solid rgba(23, 53, 48, 0.45);
             }}
 
-            .console-value {{
+            .notes-value {{
                 color: {TEXT};
                 text-align: right;
                 font-size: 0.84rem;
+                padding: 0.42rem 0;
+                border-bottom: 1px solid rgba(23, 53, 48, 0.45);
             }}
 
-            .console-divider {{
+            .notes-divider {{
                 height: 1px;
                 background: {PANEL_BORDER};
                 margin: 0.85rem 0;
             }}
 
-            .console-note {{
+            .notes-subtitle {{
+                color: {PRIMARY};
+                text-transform: uppercase;
+                letter-spacing: 0.14em;
+                font-size: 0.7rem;
+                margin-bottom: 0.45rem;
+            }}
+
+            .notes-note {{
                 display: flex;
                 gap: 0.55rem;
                 color: {MUTED};
@@ -794,7 +853,7 @@ def _inject_styles() -> None:
                 padding: 0.18rem 0;
             }}
 
-            .console-prompt {{
+            .notes-prompt {{
                 color: {PRIMARY};
             }}
 
@@ -815,12 +874,7 @@ def _inject_styles() -> None:
                     font-size: 1.3rem;
                 }}
 
-                .console-row {{
-                    flex-direction: column;
-                    align-items: flex-start;
-                }}
-
-                .console-value {{
+                .notes-value {{
                     text-align: left;
                 }}
             }}
